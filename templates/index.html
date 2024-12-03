@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Gestión de Máquinas Virtuales</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/lux/bootstrap.min.css">
+    <!-- Iconos de Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <!-- Estilos personalizados -->
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        .card {
+            margin-bottom: 20px;
+            border-radius: 10px;
+        }
+        .card-header {
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            background-image: linear-gradient(45deg, #007bff, #00d4ff);
+        }
+        .card-header h4 {
+            margin: 0;
+        }
+        .table thead {
+            background-color: #007bff;
+            color: white;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            border-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+            border-color: #545b62;
+        }
+        .form-check-label {
+            padding-left: 5px;
+        }
+        footer {
+            margin-top: 40px;
+            padding: 20px 0;
+            background-color: #343a40;
+            color: white;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <!-- Barra de navegación -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">VMS</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor02" aria-controls="navbarColor02" aria-expanded="false" aria-label="Alternar navegación">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarColor02">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Cerrar Sesión <i class="bi bi-box-arrow-right"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mensajes Flash -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        <div class="container mt-3">
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+              {{ message }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+
+    <!-- Contenido principal -->
+    <div class="container mt-4">
+        <h1 class="mb-5 text-center"><i class="bi bi-server"></i> Máquinas Virtuales</h1>
+        
+        <!-- Formulario para crear una nueva VM -->
+        <div class="card shadow">
+            <div class="card-header text-white">
+                <h4><i class="bi bi-plus-circle"></i> Nueva Máquina Virtual</h4>
+            </div>
+            <div class="card-body">
+                <form action="{{ url_for('crear_vm') }}" method="POST">
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label for="nombre_vm" class="form-label">Nombre de la Máquina Virtual:</label>
+                            <input type="text" name="nombre_vm" id="nombre_vm" class="form-control" placeholder="Nombre de la VM" required>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label for="almacenamiento_maximo" class="form-label">Almacenamiento Máximo (MB):</label>
+                            <input type="number" name="almacenamiento_maximo" id="almacenamiento_maximo" class="form-control" placeholder="Almacenamiento para la VM" required>
+                        </div>
+                        <div class="col-md-2 mb-3 d-flex align-items-center">
+                            <div class="form-check mt-4">
+                                <input class="form-check-input" type="checkbox" name="elastica" id="elastica">
+                                <label class="form-check-label" for="elastica">
+                                    Elástica
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100"><i class="bi bi-cloud-upload"></i> Crear VM</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Lista de VMs -->
+        <div class="card shadow">
+            <div class="card-header text-white">
+                <h4><i class="bi bi-laptop-fill"></i> Máquinas Virtuales Existentes</h4>
+            </div>
+            <div class="card-body">
+                {% if vms %}
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Nombre</th>
+                                <th>Almacenamiento Máximo</th>
+                                <th>Espacio Usado</th>
+                                <th>Almacenamiento Expandido</th>
+                                <th>Fecha de Creación</th>
+                                <th>Elástica</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for vm in vms %}
+                            <tr>
+                                <td>{{ vm.nombre }}</td>
+                                <td>{{ (vm.almacenamiento_maximo / (1024*1024))|round(2) }} MB</td>
+                                <td>{{ (vm.espacio_usado / (1024*1024))|round(2) }} MB</td>
+                                <td>{{ (vm.almacenamiento_expandido / (1024*1024))|round(2) }} MB</td>
+                                <td>{{ vm.fecha_creacion }}</td>
+                                <td>{{ 'Sí' if vm.elastica else 'No' }}</td>
+                                <td>
+                                    <a href="{{ url_for('ver_vm', nombre_vm=vm.nombre) }}" class="btn btn-info btn-sm">
+                                        <i class="bi bi-eye"></i> Ver
+                                    </a>
+                                    <form action="{{ url_for('eliminar_vm', nombre_vm=vm.nombre) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de eliminar esta VM?');">
+                                            <i class="bi bi-trash"></i> Eliminar
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>                        
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center">No hay máquinas virtuales creadas.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Opciones adicionales -->
+        <div class="d-flex justify-content-between mt-4">
+            <a href="{{ url_for('sincronizar_vms') }}" class="btn btn-warning">
+                <i class="bi bi-arrow-repeat"></i> Sincronizar Todas las VMs
+            </a>
+            <a href="{{ url_for('logout') }}" class="btn btn-secondary">
+                <i class="bi bi-box-arrow-right"></i> Cerrar Sesión
+            </a>
+        </div>
+    </div>
+
+    <!-- Pie de página -->
+    <footer>
+        &copy; {{ current_year }} Gestión de Almacenamiento en Máquinas Virtuales.
+    </footer>
+
+    <!-- Bootstrap JS y dependencias -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Máquina Virtual - {{ nombre_vm }}</title>
+    <!-- Bootstrap CSS -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootswatch@5.3.0/dist/lux/bootstrap.min.css">
+    <!-- Iconos de Bootstrap -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
+    <!-- Estilos personalizados -->
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .navbar-brand {
+            font-weight: bold;
+            font-size: 1.5rem;
+        }
+        .card {
+            margin-bottom: 20px;
+            border-radius: 10px;
+        }
+        .card-header {
+            border-top-left-radius: 10px;
+            border-top-right-radius: 10px;
+            background-image: linear-gradient(45deg, #007bff, #00d4ff);
+        }
+        .card-header h4 {
+            margin: 0;
+        }
+        .progress {
+            height: 25px;
+            border-radius: 12.5px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            font-weight: bold;
+        }
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+        }
+        .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+        .btn-secondary {
+            background-color: #6c757d;
+            border-color: #6c757d;
+        }
+        .btn-secondary:hover {
+            background-color: #5a6268;
+            border-color: #545b62;
+        }
+        footer {
+            margin-top: 40px;
+            padding: 20px 0;
+            background-color: #343a40;
+            color: white;
+            text-align: center;
+        }
+        .table thead {
+            background-color: #007bff;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Barra de navegación -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="{{ url_for('index') }}">VMS</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarColor02" aria-controls="navbarColor02" aria-expanded="false" aria-label="Alternar navegación">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+
+            <div class="collapse navbar-collapse" id="navbarColor02">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ url_for('logout') }}">Cerrar Sesión <i class="bi bi-box-arrow-right"></i></a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Mensajes Flash -->
+    <div class="container mt-3">
+        <div id="alert-placeholder"></div>
+    </div>
+
+    <!-- Contenido principal -->
+    <div class="container mt-4">
+        <h1 class="mb-5 text-center"><i class="bi bi-hdd-network-fill"></i> Máquina Virtual: {{ nombre_vm }}</h1>
+
+        <!-- Información de la VM -->
+        <div class="card shadow">
+            <div class="card-header text-white">
+                <h4><i class="bi bi-info-circle-fill"></i> Información de la Máquina Virtual</h4>
+            </div>
+            <div class="card-body">
+                <p><strong>Nombre:</strong> {{ config.nombre }}</p>
+                <p><strong>Almacenamiento Máximo:</strong> {{ (config.almacenamiento_maximo / (1024*1024))|round(2) }} MB</p>
+                <p><strong>Espacio Usado:</strong> {{ (config.espacio_usado / (1024*1024))|round(2) }} MB</p>
+                <p><strong>Almacenamiento Expandido:</strong> {{ (config.almacenamiento_expandido / (1024*1024))|round(2) }} MB</p>
+                <p><strong>Fecha de Creación:</strong> {{ config.fecha_creacion }}</p>
+                <p><strong>Elástica:</strong> {{ 'Sí' if config.elastica else 'No' }}</p>
+                <!-- Barra de progreso -->
+                <div class="progress mt-4">
+                    {% set porcentaje = (config.espacio_usado / config.almacenamiento_maximo) * 100 %}
+                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ porcentaje }}%;" aria-valuenow="{{ porcentaje }}" aria-valuemin="0" aria-valuemax="100">
+                        {{ porcentaje|round(2) }}%
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subir Archivos -->
+        <div class="card shadow">
+            <div class="card-header text-white bg-success">
+                <h4><i class="bi bi-upload"></i> Subir Archivos</h4>
+            </div>
+            <div class="card-body">
+                <form id="upload-form" enctype="multipart/form-data">
+                    <div class="mb-3">
+                        <label for="archivo" class="form-label">Seleccionar archivo:</label>
+                        <input type="file" name="archivo" id="archivo" class="form-control" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary"><i class="bi bi-cloud-upload-fill"></i> Subir Archivo</button>
+                </form>
+                <!-- Barra de progreso -->
+                <div class="progress mt-3" style="display: none;">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated bg-info" role="progressbar" style="width: 0%;">
+                        0%
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Archivos en la VM -->
+        <div class="card shadow">
+            <div class="card-header text-white">
+                <h4><i class="bi bi-folder-fill"></i> Archivos en {{ nombre_vm }}</h4>
+            </div>
+            <div class="card-body">
+                {% if archivos %}
+                <div class="table-responsive">
+                    <table class="table table-striped align-middle">
+                        <thead>
+                            <tr>
+                                <th>Nombre del Archivo</th>
+                                <th>Tamaño (MB)</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="archivos-tbody">
+                            {% for archivo in archivos %}
+                            <tr>
+                                <td>{{ archivo.nombre }}</td>
+                                <td>{{ (archivo.size / (1024*1024))|round(2) }} MB</td>
+                                <td>
+                                    <a href="{{ url_for('descargar_archivo', nombre_vm=nombre_vm, nombre_archivo=archivo.nombre) }}" class="btn btn-success btn-sm">
+                                        <i class="bi bi-download"></i> Descargar
+                                    </a>
+                                    <form action="{{ url_for('eliminar_archivo', nombre_vm=nombre_vm, nombre_archivo=archivo.nombre) }}" method="POST" class="d-inline">
+                                        <button type="submit" class="btn btn-danger btn-sm" onclick="return confirm('¿Estás seguro de eliminar este archivo?');">
+                                            <i class="bi bi-trash"></i> Eliminar
+                                        </button>
+                                    </form>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <p class="text-center">No hay archivos en esta VM.</p>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Descargar Respaldo y Sincronizar VMs -->
+        <div class="d-flex justify-content-between mt-4">
+            <a href="{{ url_for('respaldo_vm', nombre_vm=nombre_vm) }}" class="btn btn-info">
+                <i class="bi bi-archive-fill"></i> Descargar Respaldo
+            </a>
+            <button id="sync-btn" class="btn btn-warning">
+                <i class="bi bi-arrow-repeat"></i> Sincronizar VMs
+            </button>
+            <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                <i class="bi bi-arrow-left-circle-fill"></i> Volver
+            </a>
+        </div>
+    </div>
+
+    <!-- Modal de Sincronización -->
+    <div class="modal fade" id="syncModal" tabindex="-1" aria-labelledby="syncModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="syncModalLabel"><i class="bi bi-arrow-repeat"></i> Sincronizar Archivos</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="sync-form">
+                        <div class="mb-4">
+                            <h5>Selecciona los archivos a sincronizar:</h5>
+                            {% if archivos %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="select-all-files">
+                                <label class="form-check-label" for="select-all-files">
+                                    Seleccionar Todos
+                                </label>
+                            </div>
+                            {% for archivo in archivos %}
+                            <div class="form-check">
+                                <input class="form-check-input file-checkbox" type="checkbox" name="archivos" value="{{ archivo.nombre }}" id="file-{{ loop.index }}">
+                                <label class="form-check-label" for="file-{{ loop.index }}">
+                                    {{ archivo.nombre }} ({{ (archivo.size / (1024*1024))|round(2) }} MB)
+                                </label>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <p>No hay archivos disponibles para sincronizar.</p>
+                            {% endif %}
+                        </div>
+                        <div class="mb-4">
+                            <h5>Selecciona las VMs de destino:</h5>
+                            {% if otras_vms %}
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="select-all-vms">
+                                <label class="form-check-label" for="select-all-vms">
+                                    Seleccionar Todas
+                                </label>
+                            </div>
+                            {% for vm in otras_vms %}
+                            <div class="form-check">
+                                <input class="form-check-input vm-checkbox" type="checkbox" name="vms" value="{{ vm }}" id="vm-{{ loop.index }}">
+                                <label class="form-check-label" for="vm-{{ loop.index }}">
+                                    {{ vm }}
+                                </label>
+                            </div>
+                            {% endfor %}
+                            {% else %}
+                            <p>No hay otras VMs disponibles.</p>
+                            {% endif %}
+                        </div>
+                        <button type="submit" class="btn btn-primary"><i class="bi bi-arrow-repeat"></i> Sincronizar</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pie de página -->
+    <footer>
+        &copy; {{ current_year }} Gestión de Almacenamiento en Máquinas Virtuales.
+    </footer>
+
+    <!-- Bootstrap JS y dependencias -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- JavaScript personalizado -->
+    <script>
+        const nombre_vm = "{{ nombre_vm }}";
+        document.addEventListener('DOMContentLoaded', function() {
+            // Elementos
+            const uploadForm = document.getElementById('upload-form');
+            const archivoInput = document.getElementById('archivo');
+            const progressBar = document.querySelector('.progress');
+            const progressBarInner = progressBar.querySelector('.progress-bar');
+            const alertPlaceholder = document.getElementById('alert-placeholder');
+            const archivosTbody = document.getElementById('archivos-tbody');
+            const syncBtn = document.getElementById('sync-btn');
+            const syncModal = new bootstrap.Modal(document.getElementById('syncModal'));
+            const syncForm = document.getElementById('sync-form');
+            const selectAllFiles = document.getElementById('select-all-files');
+            const selectAllVMs = document.getElementById('select-all-vms');
+
+            // Subir archivo mediante AJAX
+            uploadForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const file = archivoInput.files[0];
+                if (!file) {
+                    showAlert('danger', 'No se ha seleccionado ningún archivo.');
+                    return;
+                }
+
+                const formData = new FormData();
+                formData.append('archivo', file);
+
+                const xhr = new XMLHttpRequest();
+                xhr.open('POST', window.location.pathname.replace('/vm/', '/subir_archivo_ajax/'));
+
+                xhr.upload.addEventListener('progress', function(e) {
+                    if (e.lengthComputable) {
+                        const percentComplete = (e.loaded / e.total) * 100;
+                        progressBar.style.display = 'block';
+                        progressBarInner.style.width = `${percentComplete}%`;
+                        progressBarInner.textContent = `${Math.round(percentComplete)}%`;
+                    }
+                });
+
+                xhr.addEventListener('load', function() {
+                    progressBar.style.display = 'none';
+                    progressBarInner.style.width = '0%';
+                    progressBarInner.textContent = '0%';
+                    archivoInput.value = '';
+
+                    const response = JSON.parse(xhr.responseText);
+                    if (response.status === 'success') {
+                        showAlert('success', response.message);
+                        // Recargar la página después de subir el archivo exitosamente
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1000); // Espera 1 segundo antes de recargar
+                    } else {
+                        showAlert('danger', response.message);
+                    }
+                });
+
+                xhr.addEventListener('error', function() {
+                    progressBar.style.display = 'none';
+                    showAlert('danger', 'Error al subir el archivo.');
+                });
+
+                xhr.send(formData);
+            });
+
+            // Mostrar alertas
+            function showAlert(type, message) {
+                const wrapper = document.createElement('div');
+                wrapper.innerHTML = `
+                    <div class="alert alert-${type} alert-dismissible fade show" role="alert">
+                        ${message}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+                    </div>
+                `;
+                alertPlaceholder.append(wrapper);
+            }
+
+            // Mostrar modal al hacer clic en "Sincronizar VMs"
+            syncBtn.addEventListener('click', function() {
+                syncModal.show();
+            });
+
+            // Manejar envío del formulario de sincronización
+            syncForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                const selectedFiles = Array.from(document.querySelectorAll('.file-checkbox:checked')).map(cb => cb.value);
+                const selectedVMs = Array.from(document.querySelectorAll('.vm-checkbox:checked')).map(cb => cb.value);
+
+                if (selectedFiles.length === 0 || selectedVMs.length === 0) {
+                    showAlert('danger', 'Debes seleccionar al menos un archivo y una VM de destino.');
+                    return;
+                }
+
+                syncModal.hide();
+
+                fetch('/sincronizar_vm_individual_ajax/' + encodeURIComponent(nombre_vm), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        archivos: selectedFiles,
+                        vms: selectedVMs
+                    })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        return response.json().then(errorData => {
+                            throw new Error(errorData.message || 'Error durante la sincronización.');
+                        });
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.status === 'success') {
+                        showAlert('success', 'Sincronización completada.');
+                        if (data.messages && data.messages.length > 0) {
+                            data.messages.forEach(msg => showAlert('info', msg));
+                        }
+                        // Recargar la página después de sincronizar exitosamente
+                        setTimeout(function() {
+                            location.reload();
+                        }, 1000); // Espera 1 segundo antes de recargar
+                    } else {
+                        showAlert('danger', data.message || 'Error durante la sincronización.');
+                    }
+                })
+                .catch((error) => {
+                    showAlert('danger', error.message || 'Error durante la sincronización.');
+                });
+            });
+
+            // Seleccionar/Deseleccionar todos los archivos
+            if (selectAllFiles) {
+                selectAllFiles.addEventListener('change', function() {
+                    const fileCheckboxes = document.querySelectorAll('.file-checkbox');
+                    fileCheckboxes.forEach(cb => cb.checked = selectAllFiles.checked);
+                });
+            }
+
+            // Seleccionar/Deseleccionar todas las VMs
+            if (selectAllVMs) {
+                selectAllVMs.addEventListener('change', function() {
+                    const vmCheckboxes = document.querySelectorAll('.vm-checkbox');
+                    vmCheckboxes.forEach(cb => cb.checked = selectAllVMs.checked);
+                });
+            }
+        });
+    </script>
+</body>
+</html>
